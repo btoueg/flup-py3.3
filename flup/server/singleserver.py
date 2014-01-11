@@ -42,16 +42,12 @@ else:
     def setCloseOnExec(sock):
         fcntl.fcntl(sock.fileno(), fcntl.F_SETFD, fcntl.FD_CLOEXEC)
 
-from .threadpool import ThreadPool
+__all__ = ['SingleServer']
 
-__all__ = ['ThreadedServer']
-
-class ThreadedServer(object):
+class SingleServer(object):
     def __init__(self, jobClass=None, jobArgs=(), **kw):
         self._jobClass = jobClass
         self._jobArgs = jobArgs
-
-        self._threadPool = ThreadPool(**kw)
 
     def run(self, sock, timeout=1.0):
         """
@@ -95,25 +91,15 @@ class ThreadedServer(object):
 
                 # Hand off to Connection.
                 conn = self._jobClass(clientSock, addr, *self._jobArgs)
-                if not self._threadPool.addJob(conn, allowQueuing=False):
-                    # No thread left, immediately close the socket to hopefully
-                    # indicate to the web server that we're at our limit...
-                    # and to prevent having too many opened (and useless)
-                    # files.
-                    clientSock.close()
+                conn.run()
 
             self._mainloopPeriodic()
 
         # Restore signal handlers.
-        if not sys.platform.startswith('win'):
-            self._restoreSignalHandlers()
+        self._restoreSignalHandlers()
 
         # Return bool based on whether or not SIGHUP was received.
         return self._hupReceived
-        
-    def shutdown(self):
-        """Wait for running threads to finish."""
-        self._threadPool.shutdown()
 
     def _mainloopPeriodic(self):
         """
@@ -177,4 +163,4 @@ if __name__ == '__main__':
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(('', 8080))
     sock.listen(socket.SOMAXCONN)
-    ThreadedServer(maxThreads=10, jobClass=TestJob).run(sock)
+    SingleServer(jobClass=TestJob).run(sock)

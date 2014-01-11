@@ -22,7 +22,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-# $Id: fcgi.py 2188 2006-12-05 22:11:45Z asaddi $
+# $Id$
 
 """
 fcgi - a FastCGI/WSGI gateway.
@@ -47,12 +47,12 @@ variable FCGI_FORCE_CGI to "Y" or "y".
 """
 
 __author__ = 'Allan Saddi <allan@saddi.com>'
-__version__ = '$Revision: 2188 $'
+__version__ = '$Revision$'
 
 import os
 
-from flup.server.fcgi_base import BaseFCGIServer, FCGI_RESPONDER
-from flup.server.threadedserver import ThreadedServer
+from .fcgi_base import BaseFCGIServer, FCGI_RESPONDER
+from .threadedserver import ThreadedServer
 
 __all__ = ['WSGIServer']
 
@@ -64,7 +64,7 @@ class WSGIServer(BaseFCGIServer, ThreadedServer):
     def __init__(self, application, environ=None,
                  multithreaded=True, multiprocess=False,
                  bindAddress=None, umask=None, multiplexed=False,
-                 debug=True, roles=(FCGI_RESPONDER,), **kw):
+                 debug=False, roles=(FCGI_RESPONDER,), forceCGI=False, **kw):
         """
         environ, if present, must be a dictionary-like object. Its
         contents will be copied into application's environ. Useful
@@ -87,12 +87,13 @@ class WSGIServer(BaseFCGIServer, ThreadedServer):
                                 umask=umask,
                                 multiplexed=multiplexed,
                                 debug=debug,
-                                roles=roles)
+                                roles=roles,
+                                forceCGI=forceCGI)
         for key in ('jobClass', 'jobArgs'):
             if key in kw:
                 del kw[key]
         ThreadedServer.__init__(self, jobClass=self._connectionClass,
-                                jobArgs=(self,), **kw)
+                                jobArgs=(self, None), **kw)
 
     def _isClientAllowed(self, addr):
         return self._web_server_addrs is None or \
@@ -112,17 +113,14 @@ class WSGIServer(BaseFCGIServer, ThreadedServer):
         ret = ThreadedServer.run(self, sock)
 
         self._cleanupSocket(sock)
+        self.shutdown()
 
         return ret
-
-def factory(global_conf, host=None, port=None, **local):
-    from . import paste_factory
-    return paste_factory.helper(WSGIServer, global_conf, host, port, **local)
 
 if __name__ == '__main__':
     def test_app(environ, start_response):
         """Probably not the most efficient example."""
-        from . import cgi
+        import cgi
         start_response('200 OK', [('Content-Type', 'text/html')])
         yield '<html><head><title>Hello World!</title></head>\n' \
               '<body>\n' \
